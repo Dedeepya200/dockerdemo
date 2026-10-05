@@ -1,14 +1,18 @@
-
 pipeline {
     agent any
+
+    environment {
+        IMAGE_NAME = 'dedeepya200/flaskapphello'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+    }
 
     stages {
 
         stage('Build Docker Image') {
             steps {
-                echo "Building Flask Docker Image"
+                echo "Building Flask Docker Image: ${IMAGE_NAME}:${IMAGE_TAG}"
 
-                sh 'docker build -t dedeepya200/flaskapphello:latest .'
+                sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
             }
         }
 
@@ -34,9 +38,9 @@ pipeline {
 
         stage('Push Docker Image') {
             steps {
-                echo "Pushing Flask Image to Docker Hub"
+                echo "Pushing ${IMAGE_NAME}:${IMAGE_TAG}"
 
-                sh 'docker push dedeepya200/flaskapphello:latest'
+                sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
             }
         }
 
@@ -53,8 +57,12 @@ pipeline {
             steps {
                 echo "Deploying Flask Application"
 
-                sh 'kubectl apply -f deployment.yaml'
                 sh 'kubectl apply -f service.yaml'
+
+                sh """
+                    kubectl set image deployment/flaskapp \
+                    flaskapp=${IMAGE_NAME}:${IMAGE_TAG}
+                """
             }
         }
 
@@ -62,6 +70,7 @@ pipeline {
             steps {
                 echo "Checking Kubernetes Resources"
 
+                sh 'kubectl rollout status deployment/flaskapp'
                 sh 'kubectl get deployments'
                 sh 'kubectl get pods'
                 sh 'kubectl get services'

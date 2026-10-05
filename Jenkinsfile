@@ -1,24 +1,81 @@
-pipeline{
+
+pipeline {
     agent any
-    stages{
+
+    stages {
+
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t myapp .'
+                echo "Building Flask Docker Image"
+
+                sh 'docker build -t dedeepya200/flaskapphello:latest .'
             }
         }
-        stage('Run Docker Container') {
+
+        stage('Docker Login') {
             steps {
-                sh 'docker rm -f mycontainer || exit0'
-                sh 'docker run -d -p 5001:5001 --name mycontainer myapp'
+                echo "Logging in to Docker Hub"
+
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                        echo "$DOCKER_PASSWORD" | docker login \
+                        -u "$DOCKER_USERNAME" \
+                        --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                echo "Pushing Flask Image to Docker Hub"
+
+                sh 'docker push dedeepya200/flaskapphello:latest'
+            }
+        }
+
+        stage('Check Kubernetes Connection') {
+            steps {
+                echo "Checking Kubernetes Connection"
+
+                sh 'kubectl config current-context'
+                sh 'kubectl get nodes'
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo "Deploying Flask Application"
+
+                sh 'kubectl apply -f deployment.yaml'
+                sh 'kubectl apply -f service.yaml'
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                echo "Checking Kubernetes Resources"
+
+                sh 'kubectl get deployments'
+                sh 'kubectl get pods'
+                sh 'kubectl get services'
             }
         }
     }
+
     post {
-        success{
-            echo 'build , run done successfully'
+        success {
+            echo "Pipeline completed successfully!"
         }
-        failure{
-            echo 'failed building'
+
+        failure {
+            echo "Pipeline failed. Please check the logs."
         }
     }
 }
